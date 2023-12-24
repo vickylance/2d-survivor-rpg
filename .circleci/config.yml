@@ -1,0 +1,104 @@
+version: 2.1
+executors:
+  linux-executor:
+    docker:
+      - image: cimg/base:stable
+        auth:
+          username: $DOCKER_HUB_USER
+          password: $DOCKER_HUB_PASSWORD
+jobs:
+  build-win-linux-mac:
+    executor: linux-executor
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies
+          command: |
+            sudo apt-get update
+            sudo apt-get -y install wget zip unzip fontconfig
+      - run:
+          name: Download Godot 4
+          command: |
+            wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip
+            unzip Godot_v${GODOT_VERSION}_linux.x86_64.zip
+            mv Godot_v${GODOT_VERSION}_linux.x86_64 godot
+            chmod +x godot
+      - run:
+          name: Download Godot 4 Export Templates
+          command: |
+            wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz
+            mkdir -p ~/.local/share/godot/export_templates
+            unzip Godot_v${GODOT_VERSION}_export_templates.tpz -d ~/.local/share/godot/export_templates
+            mv ~/.local/share/godot/export_templates/templates ~/.local/share/godot/export_templates/4.1.2.stable
+      - run:
+          name: Download ITCH.io butler
+          command: |
+            wget -q -O butler.zip https://broth.itch.ovh/butler/linux-amd64/LATEST/archive/default
+            unzip butler.zip
+            chmod +x butler
+      - run:
+          name: Open the project in Editor (Import all files)
+          command: |
+            rm Godot_v${GODOT_VERSION}_export_templates.tpz
+            rm Godot_v${GODOT_VERSION}_linux.x86_64.zip
+            rm butler.zip
+            ls -lash
+            ./godot --editor --path . --no-window --headless --custom-arg-compile-import --verbose
+      - run:
+          name: Export Windows 64-bit build
+          command: |
+            mkdir -p builds/windows/x86_64
+            ./godot --export-release win64 --headless project.godot "builds/windows/x86_64/${GAME_NAME}.exe" --verbose
+      - run:
+          name: Upload Windows 64-bit build
+          command: ./butler push builds/windows/x86_64 ${ITCH_USERNAME}/${GAME_NAME}:win-64bit
+      - run:
+          name: Export Windows 32-bit Build
+          command: |
+            mkdir -p builds/windows/x86_32
+            ./godot --export-release win32 --headless project.godot "builds/windows/x86_32/${GAME_NAME}.exe" --verbose
+      - run:
+          name: Upload Windows 32-bit Build
+          command: ./butler push builds/windows/x86_32 ${ITCH_USERNAME}/${GAME_NAME}:win-32bit
+      - run:
+          name: Export Linux 64-bit Build
+          command: |
+            mkdir -p builds/linux/x86_64
+            ./godot --export-release linux64 --headless project.godot "builds/linux/x86_64/${GAME_NAME}.x86_64" --verbose
+      - run:
+          name: Upload Linux 64-bit Build
+          command: ./butler push builds/linux/x86_64 ${ITCH_USERNAME}/${GAME_NAME}:linux-64bit
+      - run:
+          name: Export Linux 32-bit Build
+          command: |
+            mkdir -p builds/linux/x86_32
+            ./godot --export-release linux32 --headless project.godot "builds/linux/x86_32/${GAME_NAME}.x86_32" --verbose
+      - run:
+          name: Upload Linux 32-bit Build
+          command: ./butler push builds/linux/x86_32 ${ITCH_USERNAME}/${GAME_NAME}:linux-32bit
+      - run:
+          name: Export MacOS Build
+          command: |
+            mkdir -p builds/macos
+            ./godot --export-release mac --headless project.godot "builds/macos/${GAME_NAME}.app" --verbose
+      - run:
+          name: Upload MacOS Build
+          command: ./butler push builds/macos/${GAME_NAME}.app ${ITCH_USERNAME}/${GAME_NAME}:mac
+      - run:
+          name: Export HTML5 Build
+          command: |
+            mkdir -p builds/html
+            ./godot --export-release web --headless project.godot "builds/html/index.html" --verbose
+            cd builds/html
+            zip ${GAME_NAME}.zip *
+            ls -lash
+      - run:
+          name: Upload HTML5 Build
+          command: ./butler push builds/html/${GAME_NAME}.zip ${ITCH_USERNAME}/${GAME_NAME}:html
+workflows:
+  build-all-workflow:
+    jobs:
+      - build-win-linux-mac:
+          context:
+            - docker
+            - itch
