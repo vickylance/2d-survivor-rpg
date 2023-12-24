@@ -11,5 +11,11 @@ config_version=5
 [application]
 
 config/name="2d-survivor-rpg"
+config/description="A 2d top down survivor rpg game"
+run/main_scene="res://src/main.tscn"
 config/features=PackedStringArray("4.2", "Forward Plus")
 config/icon="res://icon.svg"
+
+[rendering]
+
+textures/vram_compression/import_etc2_astc=true
